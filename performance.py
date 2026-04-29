@@ -9,11 +9,16 @@ This module provides tools for:
 """
 import pygame
 import time
-import psutil
-import os
 from typing import Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from functools import lru_cache
+
+try:
+    import psutil
+    import os
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    _PSUTIL_AVAILABLE = False
 
 
 @dataclass
@@ -46,8 +51,8 @@ class PerformanceMonitor:
         self.fps_threshold_low = target_fps * 0.8  # 80% of target
         self.fps_threshold_high = target_fps * 0.95  # 95% of target
         
-        # Process monitoring
-        self.process = psutil.Process(os.getpid())
+        # Process monitoring (unavailable in WebAssembly environments)
+        self.process = psutil.Process(os.getpid()) if _PSUTIL_AVAILABLE else None
         
     def update(self, dt: float, clock: pygame.time.Clock) -> None:
         """Update performance metrics."""
@@ -60,9 +65,9 @@ class PerformanceMonitor:
         if len(self.frame_times) > self.max_frame_history:
             self.frame_times.pop(0)
         
-        # System resource usage (update less frequently for performance)
-        if len(self.frame_times) % 30 == 0:  # Every 30 frames
-            self.metrics.memory_usage = self.process.memory_info().rss / 1024 / 1024  # MB
+        # System resource usage — skipped in WebAssembly where psutil is unavailable
+        if self.process and len(self.frame_times) % 30 == 0:
+            self.metrics.memory_usage = self.process.memory_info().rss / 1024 / 1024
             self.metrics.cpu_usage = self.process.cpu_percent()
         
         # Adaptive quality adjustment

@@ -1,0 +1,9 @@
+# Build dependencies for the web/mobile (pygbag) target.
+# psutil is intentionally excluded — unavailable in WebAssembly.
+#
+# Usage:
+#   pip install pygbag
+#   python -m pygbag main.py
+#   # then open http://localhost:8000 in any browser (desktop or mobile)
+pygame>=2.5
+pygbag>=0.9.0
