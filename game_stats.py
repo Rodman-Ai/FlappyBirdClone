@@ -135,7 +135,8 @@ class GameStatistics:
         today = date.today().isoformat()
         if self.last_played_date == today:
             return
-        yesterday = (date.today().replace(day=date.today().day - 1)).isoformat()
+        from datetime import timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
         if self.last_played_date == yesterday:
             self.daily_streak += 1
         else:

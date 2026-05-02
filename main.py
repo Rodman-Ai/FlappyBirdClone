@@ -11,6 +11,9 @@ import time
 import math
 import random
 from datetime import date
+
+# Detect WebAssembly / pygbag environment — some operations must be skipped
+_IS_WEB = sys.platform in ("emscripten", "wasm32")
 from pygame.locals import (QUIT, KEYDOWN, K_ESCAPE, K_SPACE, K_r, K_p,
                             K_F1, K_F2, K_m, K_h, MOUSEBUTTONDOWN,
                             MOUSEBUTTONUP, USEREVENT)
@@ -210,18 +213,18 @@ async def main() -> None:
     achievement_manager = AchievementManager()
     weekly = WeeklyChallengeManager()
     audio = AudioManager()
-    audio.init()
     particles = ParticleSystem()
 
-    # ---- Display setup ----
+    # ---- Display setup (no SCALED/FULLSCREEN on web) ----
     flags = 0
-    if config.get("fullscreen", False):
-        flags |= pygame.FULLSCREEN
-    if config.get("vsync", False):
-        flags |= pygame.SCALED
+    if not _IS_WEB:
+        if config.get("fullscreen", False):
+            flags |= pygame.FULLSCREEN
+        if config.get("vsync", False):
+            flags |= pygame.SCALED
     try:
         screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
-    except pygame.error as e:
+    except Exception as e:
         print(f"[display] fallback: {e}")
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -230,11 +233,14 @@ async def main() -> None:
     perf = efficiency_manager.monitor
     enable_sprite_caching(True)
 
-    # Audio init
+    # ---- Audio init (music skipped on web — too slow to synthesize) ----
+    # Yield to browser before the blocking PCM synthesis loop
+    await asyncio.sleep(0)
+    audio.init()
     audio.set_sfx_volume(config.get("sfx_volume", 0.5))
     audio.set_music_volume(config.get("music_volume", 0.25))
     audio.set_muted(config.get("muted", False))
-    if config.get("music_enabled", True):
+    if not _IS_WEB and config.get("music_enabled", True):
         audio.play_music()
 
     # Gamepad
@@ -1146,8 +1152,18 @@ async def main() -> None:
 
             pygame.display.flip()
 
-        except pygame.error as e:
-            print(f"[render] {e}")
+        except Exception as e:
+            # Broad catch prevents silent black-screen crashes on web
+            print(f"[render] {type(e).__name__}: {e}")
+            try:
+                # Show a minimal error message so the screen isn't pure black
+                screen.fill((10, 10, 30))
+                font = pygame.font.SysFont(None, 24)
+                msg = font.render(f"Error: {e}", True, (255, 80, 80))
+                screen.blit(msg, (10, HEIGHT // 2))
+                pygame.display.flip()
+            except Exception:
+                pass
 
         await asyncio.sleep(0)
 
